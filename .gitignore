@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+.venv/
+venv/
+env/
+output/
+models/
+*.mp3
+*.wav
+*.m4a
+*.flac
+*.lrc
+.env
