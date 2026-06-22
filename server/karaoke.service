@@ -1,0 +1,16 @@
+[Unit]
+Description=Karaoke сборщик (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/karaoke-runpod/server
+EnvironmentFile=/opt/karaoke-runpod/server/.env
+ExecStart=/opt/karaoke-runpod/server/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8800
+Restart=always
+RestartSec=3
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target
