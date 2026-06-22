@@ -256,7 +256,9 @@ def _get_model():
         return _MODEL
     import stable_whisper
     size = os.environ.get("WHISPER_MODEL", "small")
-    device = pick_device()
+    # faster-whisper (CTranslate2) умеет только cuda/cpu — MPS не поддерживается.
+    # Demucs при этом всё равно может идти на MPS/CUDA (см. pick_device).
+    device = "cuda" if pick_device() == "cuda" else "cpu"
     compute = "float16" if device == "cuda" else "int8"
     print(f"[ALIGN] load stable-ts {size} on {device} ({compute})")
     _MODEL = stable_whisper.load_faster_whisper(size, device=device, compute_type=compute)
