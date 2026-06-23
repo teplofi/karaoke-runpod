@@ -265,9 +265,30 @@ def _get_model():
     return _MODEL
 
 
+def _fix_overlaps(lines):
+    """Лёгкая правка: монотонные неперекрывающиеся тайминги, без схлопывания."""
+    prev_end = 0.0
+    for ln in lines:
+        for w in ln.words:
+            if w.start < prev_end:
+                w.start = prev_end
+            if w.end <= w.start:
+                w.end = w.start + 0.08
+            prev_end = w.end
+        if ln.words:
+            ln.start = ln.words[0].start
+            ln.end = ln.words[-1].end
+    return lines
+
+
 def align_lyrics(audio_path: str | Path, lyrics: str, *, language: str = "ru",
                  isolate: bool = True, work_dir: str | Path = "/tmp/karaoke") -> list:
-    """Main entry: audio + known lyrics -> KaraokeLine[] with word timings."""
+    """Main entry: audio + known lyrics -> KaraokeLine[] with word timings.
+
+    Берём тайминги ПРЯМО из forced-align по строкам (original_split=True):
+    модель сама расставляет время каждого слова. Никакого пере-маппинга —
+    именно он раньше схлопывал повторяющиеся строки в конце в одну точку.
+    """
     audio_path = Path(audio_path)
     work_dir = Path(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -276,32 +297,29 @@ def align_lyrics(audio_path: str | Path, lyrics: str, *, language: str = "ru",
     if isolate:
         src = isolate_vocals(audio_path, work_dir / audio_path.stem)
 
-    lyric_words, lines_raw, counts = _tokenize(lyrics)
+    lines_raw = [ln.strip() for ln in lyrics.strip().splitlines() if ln.strip()]
+    if not lines_raw:
+        lines_raw = [lyrics.strip()]
+
     model = _get_model()
     result = model.align(src, "\n".join(lines_raw), language=language,
-                         original_split=True, suppress_silence=True,
-                         suppress_word_ts=True, fast_mode=True, verbose=False)
+                         original_split=True, suppress_silence=True, verbose=False)
 
-    tokens = []
+    lines = []
     for seg in result.segments:
-        for w in seg.words or []:
-            t = _clean_token(w.word or "")
-            if t:
-                tokens.append({"text": t, "start": float(w.start), "end": float(w.end)})
+        words = []
+        for w in (seg.words or []):
+            txt = (w.word or "").strip()
+            if not txt:
+                continue
+            s, e = float(w.start), float(w.end)
+            if e < s:
+                e = s
+            words.append(KaraokeWord(txt, s, e))
+        if words:
+            lines.append(KaraokeLine(words, words[0].start, words[-1].end))
 
-    if not tokens:
-        return []
-
-    mapped = _monotonic_align(lyric_words, tokens)
-    if len(mapped) < len(lyric_words):
-        # fallback: even spread
-        dur = tokens[-1]["end"] if tokens else len(lyric_words) * 0.3
-        step = dur / max(len(lyric_words), 1)
-        mapped = [KaraokeWord(w, i * step, (i + 1) * step) for i, w in enumerate(lyric_words)]
-
-    duration = max((t["end"] for t in tokens), default=len(lyric_words) * 0.3)
-    mapped = _clamp(_smooth(mapped), duration)
-    return _group(mapped, counts)
+    return _fix_overlaps(lines)
 
 
 # ---------- export ----------
