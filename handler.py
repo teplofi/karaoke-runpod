@@ -22,6 +22,7 @@ import binascii
 import os
 import tempfile
 import traceback
+import urllib.request
 from pathlib import Path
 
 import runpod
@@ -29,6 +30,21 @@ import runpod
 from karaoke_align import align_lyrics, pick_device, to_json, to_lrc
 
 _VALID_EXT = {".mp3", ".wav", ".m4a", ".flac", ".ogg"}
+
+
+def _download_audio(url: str, filename: str | None) -> Path:
+    """Скачать аудио по URL (для больших файлов вместо base64)."""
+    ext = Path(filename or url.split("?")[0]).suffix.lower()
+    if ext not in _VALID_EXT:
+        ext = ".mp3"
+    tmp = Path(tempfile.mkdtemp(prefix="kr_")) / f"track{ext}"
+    req = urllib.request.Request(url, headers={"User-Agent": "karaoke-runpod/1.0"})
+    with urllib.request.urlopen(req, timeout=120) as r:
+        data = r.read()
+    if len(data) < 1000:
+        raise ValueError("downloaded audio too small / empty")
+    tmp.write_bytes(data)
+    return tmp
 
 
 def _decode_audio(b64: str, filename: str | None) -> Path:
@@ -53,10 +69,11 @@ def handler(job):
     try:
         inp = job.get("input") or {}
         audio_b64 = inp.get("audio")
+        audio_url = inp.get("audio_url")
         lyrics = (inp.get("lyrics") or "").strip()
 
-        if not audio_b64:
-            return {"error": "missing 'audio' (base64-encoded track)"}
+        if not audio_b64 and not audio_url:
+            return {"error": "missing 'audio' (base64) or 'audio_url'"}
         if not lyrics:
             return {"error": "missing 'lyrics' (song text)"}
 
@@ -65,7 +82,10 @@ def handler(job):
         title = inp.get("title", "")
         artist = inp.get("artist", "")
 
-        track = _decode_audio(audio_b64, inp.get("filename"))
+        if audio_url:
+            track = _download_audio(audio_url, inp.get("filename"))
+        else:
+            track = _decode_audio(audio_b64, inp.get("filename"))
 
         lines = align_lyrics(
             track, lyrics, language=language, isolate=isolate,
