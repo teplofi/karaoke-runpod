@@ -1,0 +1,15 @@
+[Unit]
+Description=Karaoke Telegram bot
+After=network-online.target
+
+[Service]
+User=teplofi
+WorkingDirectory=/home/teplofi/karaoke-runpod/server
+EnvironmentFile=/home/teplofi/karaoke-runpod/server/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/teplofi/karaoke-runpod/server/.venv/bin/python bot.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

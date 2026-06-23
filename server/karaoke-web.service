@@ -1,0 +1,14 @@
+[Unit]
+Description=Karaoke web form (FastAPI)
+After=network-online.target
+
+[Service]
+User=teplofi
+WorkingDirectory=/home/teplofi/karaoke-runpod/server
+EnvironmentFile=/home/teplofi/karaoke-runpod/server/.env
+ExecStart=/home/teplofi/karaoke-runpod/server/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8800
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
