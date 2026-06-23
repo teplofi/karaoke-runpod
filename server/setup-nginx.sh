@@ -39,18 +39,23 @@ server {
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
-    auth_basic "Karaoke";
-    auth_basic_user_file /etc/nginx/.htpasswd_karaoke;
-
     client_max_body_size 30m;
     root /var/www/claude-test;
     index index.html;
 
-    location = /     { proxy_pass http://127.0.0.1:8800; proxy_set_header Host $host; proxy_read_timeout 700s; }
-    location = /make { proxy_pass http://127.0.0.1:8800; proxy_set_header Host $host; proxy_read_timeout 700s; }
-    # audio.mp3 без авторизации — чтобы RunPod мог скачать трек для обработки
-    location ~* /audio\.mp3$ { auth_basic off; try_files $uri =404; }
-    location /       { try_files $uri $uri/ =404; }
+    # Форма и обработка — под паролем (чтобы веб-GPU не дёргали посторонние).
+    location = / {
+        auth_basic "Karaoke";
+        auth_basic_user_file /etc/nginx/.htpasswd_karaoke;
+        proxy_pass http://127.0.0.1:8800; proxy_set_header Host $host; proxy_read_timeout 700s;
+    }
+    location = /make {
+        auth_basic "Karaoke";
+        auth_basic_user_file /etc/nginx/.htpasswd_karaoke;
+        proxy_pass http://127.0.0.1:8800; proxy_set_header Host $host; proxy_read_timeout 700s;
+    }
+    # Готовые караоке-страницы — публичные (ссылки из бота открываются у всех).
+    location / { try_files $uri $uri/ =404; }
 }
 NGINX
 

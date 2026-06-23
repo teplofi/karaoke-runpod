@@ -2,3 +2,4 @@ fastapi>=0.110
 uvicorn[standard]>=0.29
 python-multipart>=0.0.9
 requests>=2.31
+python-telegram-bot>=21.0

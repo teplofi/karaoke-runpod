@@ -13,3 +13,5 @@ models/
 *.flac
 *.lrc
 .env
+bot_usage.json
+*.log
