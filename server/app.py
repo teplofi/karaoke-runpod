@@ -155,6 +155,11 @@ async def make(audio: UploadFile, lyrics: str = Form(...), title: str = Form("")
         with open(os.path.join(page_dir, f"{slug}.lrc"), "w", encoding="utf-8") as f:
             f.write(out["lrc"])
 
+    # метка для авто-чистки: cleanup.sh удалит папки с .karaoke старше TTL.
+    # Только помеченные папки — чужое (health/, plans/...) не трогается.
+    with open(os.path.join(page_dir, ".karaoke"), "w") as f:
+        f.write(str(int(time.time())))
+
     url = f"{PUBLIC_BASE}/{slug}/" if PUBLIC_BASE else f"/{slug}/"
     body = (f"<html><head><meta charset=utf-8><meta http-equiv=refresh content='1;url={url}'>"
             f"</head><body style='font-family:sans-serif;background:#0d0d14;color:#fff;padding:40px'>"
