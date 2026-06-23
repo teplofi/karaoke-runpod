@@ -48,6 +48,8 @@ server {
 
     location = /     { proxy_pass http://127.0.0.1:8800; proxy_set_header Host $host; proxy_read_timeout 700s; }
     location = /make { proxy_pass http://127.0.0.1:8800; proxy_set_header Host $host; proxy_read_timeout 700s; }
+    # audio.mp3 без авторизации — чтобы RunPod мог скачать трек для обработки
+    location ~* /audio\.mp3$ { auth_basic off; try_files $uri =404; }
     location /       { try_files $uri $uri/ =404; }
 }
 NGINX
