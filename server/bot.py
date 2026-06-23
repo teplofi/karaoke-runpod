@@ -135,12 +135,17 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 def main():
     if not BOT_TOKEN:
         raise SystemExit("BOT_TOKEN не задан в .env")
-    app = Application.builder().token(BOT_TOKEN).build()
+    app = (Application.builder().token(BOT_TOKEN)
+           .connect_timeout(30).read_timeout(30)
+           .get_updates_connect_timeout(30).get_updates_read_timeout(45)
+           .build())
     app.add_handler(CommandHandler(["start", "help"], start))
     app.add_handler(MessageHandler(filters.AUDIO | filters.Document.AUDIO, on_audio))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
     print("[BOT] запущен, polling…")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    # bootstrap_retries=-1 — бесконечно повторять при сетевых таймаутах на старте
+    app.run_polling(allowed_updates=Update.ALL_TYPES, bootstrap_retries=-1,
+                    drop_pending_updates=True)
 
 
 if __name__ == "__main__":
