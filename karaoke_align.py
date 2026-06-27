@@ -170,7 +170,7 @@ def _smooth_word_gaps(words):
     return out
 
 
-def _fill_word_gaps(lyric_words, anchors, duration: float = 0.0):
+def _fill_word_gaps(lyric_words, anchors):
     n = len(lyric_words)
     if not anchors:
         return []
@@ -200,19 +200,10 @@ def _fill_word_gaps(lyric_words, anchors, duration: float = 0.0):
             idx = li0 + 1 + k
             result[idx] = KaraokeWord(lyric_words[idx], t_start + k * step, t_start + (k + 1) * step)
 
-    # Хвост без якорей: раскидываем равномерно до конца трека (а не фикс. шагом
-    # за пределы duration — иначе clamp пиннит всё в одну точку = слипание конца).
     last_i, last_e = anchors[-1][0], anchors[-1][2]
-    trailing = n - last_i - 1
-    if trailing > 0:
-        if duration and duration > last_e + 0.1:
-            t_step = (duration - last_e) / trailing
-        else:
-            t_step = 0.18
-        for k in range(trailing):
-            idx = last_i + 1 + k
-            result[idx] = KaraokeWord(lyric_words[idx], last_e + k * t_step,
-                                      last_e + (k + 1) * t_step)
+    for i in range(last_i + 1, n):
+        result[i] = KaraokeWord(lyric_words[i], last_e + (i - last_i - 1) * 0.18,
+                                last_e + (i - last_i) * 0.18)
 
     for i in range(n):
         if result[i] is None:
@@ -221,7 +212,7 @@ def _fill_word_gaps(lyric_words, anchors, duration: float = 0.0):
     return _smooth_word_gaps([result[i] for i in range(n)])
 
 
-def _monotonic_align(lyric_words, whisper_words, *, lookahead: int = 14, duration: float = 0.0):
+def _monotonic_align(lyric_words, whisper_words, *, lookahead: int = 14):
     anchors = []
     wi, m = 0, len(whisper_words)
     for li, lw in enumerate(lyric_words):
@@ -235,7 +226,7 @@ def _monotonic_align(lyric_words, whisper_words, *, lookahead: int = 14, duratio
             anchors.append((li, float(w["start"]), float(w["end"])))
             wi = best_j + 1
     if len(anchors) >= max(3, len(lyric_words) // 6):
-        return _fill_word_gaps(lyric_words, anchors, duration)
+        return _fill_word_gaps(lyric_words, anchors)
     return []
 
 
@@ -336,39 +327,6 @@ def _sequence_align(lyric_words, whisper_words):
     return _smooth_word_gaps([result[i] for i in range(n)])
 
 
-def _spread_crammed(words, duration: float):
-    """Хвост, который модель свалила в конец трека (слов нет в аудио / повтор),
-    раскидываем равномерно по последним секундам — чтобы прокручивался,
-    а не вспыхивал разом. На нормальных треках (нет слипания) не срабатывает."""
-    n = len(words)
-    if n < 5 or duration <= 0:
-        return words
-    # Максимальный хвост, спрессованный нереально плотно (<0.12с на слово —
-    # столько не поётся; значит модель свалила сюда слова, которых нет в аудио).
-    p = n
-    while p > 1:
-        count = n - (p - 1)
-        span = words[-1].start - words[p - 1].start
-        if span < count * 0.12:
-            p -= 1
-        else:
-            break
-    run = n - p
-    if run < 5:
-        return words
-    # раскидываем по роомному окну ~0.5с на слово, заканчивая на конце трека
-    t1 = duration
-    t0 = max(0.0, t1 - run * 0.5)
-    if p > 0:
-        t0 = max(t0, words[p - 1].start + 0.3)
-    if t1 - t0 < 1.0:
-        t0 = max(0.0, t1 - run * 0.5)
-    step = (t1 - t0) / run
-    for k in range(run):
-        words[p + k] = KaraokeWord(words[p + k].text, t0 + k * step, t0 + (k + 1) * step)
-    return words
-
-
 def _clamp_to_duration(words, duration: float):
     if not words or duration <= 0:
         return words
@@ -451,12 +409,11 @@ def align_lyrics(audio_path: str | Path, lyrics: str, *, language: str = "ru",
     if not aligned_tokens:
         return []
 
-    mapped = _monotonic_align(lyric_words, aligned_tokens, duration=duration)
+    mapped = _monotonic_align(lyric_words, aligned_tokens)
     if len(mapped) < len(lyric_words):
         mapped = _sequence_align(lyric_words, aligned_tokens)
 
     mapped = _clamp_to_duration(mapped, duration)
-    mapped = _spread_crammed(mapped, duration)
     mapped = _smooth_word_gaps(mapped)
     return _group_into_lines(mapped, line_counts, lines_raw)
 
